@@ -1,0 +1,12 @@
+[package]
+name = "acquire"
+version = "0.1.0"
+edition = "2021"
+description = "Acquisition core for microscopes: event timing, hardware sequences, live view and OME-TIFF writing"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/curlh/acquire"
+readme = "README.md"
+keywords = ["microscopy", "microscope", "acquisition", "camera", "ome-tiff"]
+categories = ["science", "hardware-support"]
+
+[dependencies]
