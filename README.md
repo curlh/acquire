@@ -1,6 +1,14 @@
 # acquire
 
-acquire is a Rust library for running microscope acquisitions. You write the drivers and the interface for your own setup, and acquire takes care of the rest: timing, triggered sequences, threading, live view and saving to OME-TIFF.
+More and more labs write their own microscope software. Every setup has its own cameras, stages and light sources and its own way of running an experiment, and with AI coding agents a researcher can now write the drivers and the user interface for their own setup.
+
+The part in the middle is still hard to get right: starting each image at the right time, sending only the settings that changed, running Z stacks as triggered sequences, keeping slow devices off the GUI thread, putting the hardware back after a run, and saving data that Fiji and napari can open. It is also the same in every lab.
+
+acquire is that middle part, as a Rust library. You write the drivers and the interface for your setup, and acquire runs the acquisition.
+
+![What you write and what acquire does](docs/overview.svg)
+
+Rust suits this kind of work now that much of the code is written with AI agents. The compiler checks what the agent wrote, so type errors and data races show up when the program is built rather than halfway through an experiment. Cargo fetches the dependencies and builds the program the same way on Windows and Linux, so a new machine needs nothing more than `cargo run`. And Rust runs at native speed without garbage collection pauses, which matters when a camera delivers 8 MB frames a hundred times a second.
 
 ## Example
 
