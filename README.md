@@ -1,20 +1,81 @@
 # acquire
 
-Acquisition core for microscopes, written in Rust.
+acquire is a Rust library for running microscope acquisitions. You write the drivers and the interface for your own setup, and acquire takes care of the rest: timing, triggered sequences, threading, live view and saving to OME-TIFF.
 
-The lab writes its device drivers, its UI and its workflow, often with an AI agent. acquire is the part that is hard to get right and the same everywhere: timing of events, hardware sequences, threads, live view, putting the hardware back after a run, and writing images.
+## Example
 
-- Events go into a `Queue`, which takes more events while running and reads iterators lazily.
-- Consecutive events that differ only in Z and exposure are taken as one hardware sequence when the devices support it.
-- `Hook`s run between hardware steps and after each image, for autofocus and adaptive acquisition.
-- `Microscope` owns the hardware on its own thread, for programs with a UI, and adds live view.
-- `OmeTiffSink` writes OME-TIFF (BigTIFF, OME-XML 2016-06) and `BinarySink` raw frames with a CSV index, both in the layouts of ScopeWriter.
-- `sim` has simulated devices, so a program runs without hardware.
+```rust
+use acquire::*;
 
-AGENTS.md describes how to build a program on it.
+fn main() -> Result<()> {
+    // Two positions, 11 Z planes, two channels, 10 time points one second apart
+    let plan = Plan {
+        cameras: vec!["Cam".into()],
+        time_points: 10,
+        interval_ms: 1000.0,
+        positions: vec![
+            Position { x: 0.0, y: 0.0, ..Default::default() },
+            Position { x: 500.0, y: 0.0, ..Default::default() },
+        ],
+        z_positions: (-5..=5).map(|z| z as f64).collect(),
+        channel_group: "Channel".into(),
+        channels: vec![
+            Channel { preset: "DAPI".into(), ..Default::default() },
+            Channel { preset: "GFP".into(), exposure_ms: Some(50.0), ..Default::default() },
+        ],
+        ..Default::default()
+    };
+    let queue = Queue::new();
+    queue.submit(plan.events());
+    queue.close();
 
-    cargo run --example plan
-    cargo run --example adaptive
-    cargo run --example live
+    let mut hw = sim::hardware();
+    let mut sink = Buffered::new(OmeTiffSink::create("data")?, 16);
+    run(&mut hw, &queue, &mut sink, &mut [])?;
+    Ok(())
+}
+```
 
-Licensed under either of MIT or Apache-2.0, at your option.
+This runs on the simulated microscope in `acquire::sim` and writes `data/Cam.ome.tif`, which opens in Fiji with all its axes. Replace `sim::hardware()` with your own devices to run it on a real microscope.
+
+## Triggered sequences
+
+If the camera and the focus drive support sequences, a Z stack is taken as one triggered sequence instead of moving and snapping plane by plane. Output of `cargo run --example plan` with 5 ms exposures:
+
+```
+step of 5 event(s)
+  #0   t=0 p=0 c=Some("DAPI") z=Some(-2.0)      5.1 ms
+  #1   t=0 p=0 c=Some("DAPI") z=Some(-1.0)     10.2 ms
+  #2   t=0 p=0 c=Some("DAPI") z=Some(0.0)     15.3 ms
+  #3   t=0 p=0 c=Some("DAPI") z=Some(1.0)     20.4 ms
+  #4   t=0 p=0 c=Some("DAPI") z=Some(2.0)     25.5 ms
+step of 1 event(s)
+  #5   t=0 p=0 c=Some("FITC") z=Some(0.0)     33.6 ms
+```
+
+With a Hamamatsu ORCA-Flash4.0 we record full 2048×2048 frames at 98 fps with live view running.
+
+## Features
+
+- Time, position, channel and Z plans, or your own list of events
+- Events can be added during a run, so an acquisition can react to its images
+- Hooks for autofocus and other custom steps
+- `Microscope` runs the hardware on a background thread for programs with a GUI, with live view
+- OME-TIFF and raw binary output
+- Simulated devices, so you can develop without hardware
+
+## Writing drivers
+
+Each device implements a small trait. A camera needs `id`, `set_exposure` and `snap`, plus a few more methods if it can stream. [AGENTS.md](AGENTS.md) covers the details and is written so that an AI coding agent can follow it.
+
+## Examples
+
+```
+cargo run --example plan       # the run above
+cargo run --example adaptive   # Z stacks only where the overview is bright
+cargo run --example live       # live view, then an acquisition in the background
+```
+
+## License
+
+MIT or Apache-2.0, at your option.
