@@ -2,6 +2,7 @@
 name = "acquire"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.66"
 description = "Acquisition core for microscopes: event timing, hardware sequences, live view and OME-TIFF writing"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/curlh/acquire"
